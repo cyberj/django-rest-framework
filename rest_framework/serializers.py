@@ -4,6 +4,7 @@ import types
 from decimal import Decimal
 from django.core.serializers.base import DeserializedObject
 from django.utils.datastructures import SortedDict
+from django.db import models
 from rest_framework.fields import *
 
 
@@ -114,7 +115,7 @@ class BaseSerializer(Field):
         Returns the complete set of fields for the object as a dict.
 
         This will be the set of any explicitly declared fields,
-        plus the set of fields returned by get_default_fields().
+        plus the set of fields returned by default_fields().
         """
         ret = SortedDict()
 
@@ -297,7 +298,7 @@ class ModelSerializer(RelatedField, Serializer):
         if serialize:
             cls = obj.__class__
         else:
-            cls = self.opts.model
+            cls = self.model
 
         opts = cls._meta.concrete_model._meta
         pk_field = opts.pk
@@ -335,14 +336,29 @@ class ModelSerializer(RelatedField, Serializer):
         """
         Creates a default instance of a basic field.
         """
-        return Field()
+        #  We need to map Django's Fields to our fields
+        field_mapping = dict([
+         [models.FloatField.__name__, FloatField],
+         [models.IntegerField.__name__, IntegerField],
+         [models.DateTimeField.__name__, DateTimeField],
+         [models.DateField.__name__, DateField],
+         [models.EmailField.__name__, EmailField],
+         [models.CharField.__name__, CharField],
+         [models.CommaSeparatedIntegerField.__name__, CharField],
+         [models.BooleanField.__name__, BooleanField]
+        ])
+        try:
+            field = field_mapping[model_field.__class__.__name__]()
+        except KeyError:
+            field = Field()
+        return field
 
     def restore_object(self, attrs, instance=None):
         """
         Restore the model instance.
         """
         m2m_data = {}
-        for field in self.opts.model._meta.many_to_many:
+        for field in self.model._meta.many_to_many:
             if field.name in attrs:
                 m2m_data[field.name] = attrs.pop(field.name)
-        return DeserializedObject(self.opts.model(**attrs), m2m_data)
+        return DeserializedObject(self.model(**attrs), m2m_data)

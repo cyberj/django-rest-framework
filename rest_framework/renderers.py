@@ -230,7 +230,8 @@ class DocumentingHTMLRenderer(BaseRenderer):
          [serializers.DateField.__name__, forms.DateField],
          [serializers.EmailField.__name__, forms.EmailField],
          [serializers.CharField.__name__, forms.CharField],
-         [serializers.BooleanField.__name__, forms.BooleanField]
+         [serializers.BooleanField.__name__, forms.BooleanField],
+         [serializers.Field.__name__, forms.CharField],
         ])
 
         # Creating an on the fly form see: http://stackoverflow.com/questions/3915024/dynamically-creating-classes-python
@@ -239,10 +240,13 @@ class DocumentingHTMLRenderer(BaseRenderer):
         if hasattr(self.view, 'object'):
             object = self.view.object
         serializer = self.view.get_serializer(instance=object)
-        for k, v in serializer.fields.items():
+        for k, v in serializer.get_fields(serialize=bool(object), obj=object).items():
             if v.readonly:
                 continue
-            fields[k] = field_mapping[v.__class__.__name__]()
+            try:
+                fields[k] = field_mapping[v.__class__.__name__]()
+            except KeyError:
+                continue
         OnTheFlyForm = type("OnTheFlyForm", (forms.Form,), fields)
         if object and not self.view.request.method == 'DELETE':  # Don't fill in the form when the object is deleted
             data = serializer.data
